@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpMCPConfig</title>
+
+    <!-- Add Bootstrap CSS from the CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        /* Custom styling */
+        #resultsTable, #gradleVersionsTable {
+            display: none;
+        }
+
+        .branch-dropdown, .gradle-search-bar {
+            margin-bottom: 20px;
+        }
+
+        /* Section styling */
+        .section {
+            margin-top: 40px;
+        }
+
+        .gradle-list {
+            list-style: none;
+            padding-left: 0;
+            margin-top: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .gradle-item {
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        .gradle-item:hover {
+            background-color: #f0f0f0;
+        }
+
+        .table {
+            margin-top: 20px;
+        }
+
+        /* Mobile adjustments */
+        @media (max-width: 768px) {
+            .form-select, #gradleSearchInput {
+                width: 100%; /* Make form controls full width on mobile */
+            }
+
+            .branch-dropdown, .gradle-search-bar {
+                width: 100%;
+                margin-bottom: 20px;
+            }
+
+            .container {
+                padding-left: 10px;
+                padding-right: 10px;
+            }
+
+            .table-responsive {
+                max-width: 100%;
+                overflow-x: auto;
+            }
+
+            /* Adjust section margins for mobile */
+            .section {
+                margin-top: 20px;
+            }
+
+            /* Adjust list items and font size */
+            .gradle-list {
+                max-height: 250px;
+                overflow-y: auto;
+            }
+
+            .gradle-item {
+                font-size: 14px; /* Smaller font size for better readability */
+                padding: 6px;
+            }
+
+            /* Table responsiveness: Allow horizontal scroll on smaller screens */
+            .table-responsive table {
+                width: 100%; /* Table should fill the container */
+                overflow-x: auto;
+                display: block;
+            }
+
+            /* Make table headers more compact on mobile */
+            .table thead th {
+                padding: 10px;
+                font-size: 12px;
+            }
+
+            /* Adjust table body cells for mobile */
+            .table tbody td {
+                padding: 8px;
+                font-size: 14px;
+            }
+        }
+
+        /* Larger screen adjustments (tablets and desktops) */
+        @media (min-width: 769px) {
+            .form-select, #gradleSearchInput {
+                width: 50%; /* Use a smaller width for larger screens */
+            }
+
+            .gradle-list {
+                max-height: 350px;
+            }
+
+            .gradle-item {
+                font-size: 16px;
+            }
+
+            .container {
+                max-width: 1100px; /* Limit container size on large screens */
+            }
+        }
+
+        /* Extra large screens */
+        @media (min-width: 1200px) {
+            .container {
+                max-width: 1100px; /* Further limit the container on very large screens */
+            }
+            .gradle-item {
+                font-size: 18px; /* Larger font size on big screens for readability */
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Container for ForgeConfig Fetcher -->
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-12">
+            <h1 class="text-center mb-4">Welcome to ForgeConfig and Gradle Version Fetcher</h1>
+            <p class="text-center lead mb-4">Fetch Minecraft Forge configuration variables and Gradle versions directly from GitHub and Gradle API.</p>
+
+            <!-- ForgeConfig Fetcher Section -->
+            <div class="section">
+                <h2 class="text-center">ForgeConfig Fetcher</h2>
+                <p class="text-center mb-4">Select a branch to fetch Minecraft Forge configuration variables.</p>
+
+                <div class="branch-dropdown text-center">
+                    <label for="branchSelector" class="form-label">Select Branch</label>
+                    <select id="branchSelector" class="form-select w-50 mx-auto">
+                        <option>Fetching...</option>
+                    </select>
+                </div>
+
+                <!-- Table to display ForgeConfig fetched variables -->
+                <div id="resultsTable">
+                    <table class="table table-bordered table-striped">
+                        <thead>
+                        <tr>
+                            <th>Variable</th>
+                            <th>Value</th>
+                        </tr>
+                        </thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Gradle Version Fetcher Section -->
+            <div class="section">
+                <h2 class="text-center">Gradle Version Fetcher</h2>
+                <p class="text-center mb-4">Search and select a Gradle version to see the corresponding wrapper.properties line format.</p>
+
+                <div class="gradle-search-bar text-center">
+                    <label for="gradleSearchInput" class="form-label">Search Gradle Version</label>
+                    <input type="text" id="gradleSearchInput" class="form-control mx-auto" placeholder="Search Gradle version..." oninput="filterVersions()">
+                </div>
+
+                <!-- List to show Gradle versions based on search -->
+                <ul id="gradleList" class="gradle-list"></ul>
+
+                <!-- Table to show the selected Gradle version and its download URL -->
+                <table id="gradleVersionTable" class="table table-bordered table-striped" style="display:none;">
+                    <thead>
+                    <tr>
+                        <th>Version</th>
+                        <th>Download URL</th>
+                    </tr>
+                    </thead>
+                    <tbody id="gradleVersionTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Bootstrap JS from the CDN -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // ForgeConfig Fetcher
+    const blacklistedBranches = ['1.11.x', '1.10.x', '1.9.4', '1.9', '1.8.9', '1.8.8', '1.8', '1.7.10', '1.9.0', '1.6', 'failtests', 'mc172', 'noci-1.10.2-mezz', 'noci-1.11.x', 'noci-1.12.x'];
+
+    window.onload = function () {
+        fetchDefaultBranch();
+        fetchGradleVersions();
+    };
+
+    // Fetch default branch from GitHub repo
+    function fetchDefaultBranch() {
+        const repoUrl = "https://api.github.com/repos/MinecraftForge/MinecraftForge";
+        const branchSelector = document.getElementById("branchSelector");
+        branchSelector.innerHTML = "<option>Fetching...</option>";
+
+        fetch(repoUrl)
+            .then(response => response.json())
+            .then(data => {
+                const defaultBranch = data.default_branch;
+                fetchBranches(defaultBranch);
+            })
+            .catch(error => console.error("Error fetching repository data:", error));
+    }
+
+    // Fetch available branches and exclude blacklisted ones
+    function fetchBranches(defaultBranch) {
+        const repoUrl = "https://api.github.com/repos/MinecraftForge/MinecraftForge/branches";
+
+        fetch(repoUrl)
+            .then(response => response.json())
+            .then(data => {
+                const branchSelector = document.getElementById("branchSelector");
+                branchSelector.innerHTML = '';
+                data.forEach(branch => {
+                    if (!blacklistedBranches.includes(branch.name)) {
+                        const option = document.createElement("option");
+                        option.value = branch.name;
+                        option.textContent = branch.name;
+                        branchSelector.appendChild(option);
+                    }
+                });
+
+                branchSelector.value = defaultBranch;
+                fetchGradleProperties(defaultBranch);
+            })
+            .catch(error => console.error("Error fetching branches:", error));
+
+        document.getElementById("branchSelector").addEventListener("change", function () {
+            fetchGradleProperties(this.value);
+        });
+    }
+
+    // Fetch gradle.properties for selected branch
+    function fetchGradleProperties(branch) {
+        const gradlePropertiesUrl = `https://raw.githubusercontent.com/MinecraftForge/MinecraftForge/${branch}/gradle.properties`;
+        fetch(gradlePropertiesUrl)
+            .then(response => response.text())
+            .then(content => {
+                const variables = extractVariables(content);
+                if (Object.keys(variables).length > 0) {
+                    document.getElementById("resultsTable").style.display = "block";
+                    populateTable(variables);
+                } else {
+                    fetchBuildGradle(branch);
+                }
+            })
+            .catch(() => fetchBuildGradle(branch));
+    }
+
+    // Fetch build.gradle content if gradle.properties is empty
+    function fetchBuildGradle(branch) {
+        const buildGradleUrl = `https://raw.githubusercontent.com/MinecraftForge/MinecraftForge/${branch}/build.gradle`;
+        fetch(buildGradleUrl)
+            .then(response => response.text())
+            .then(content => {
+                const variables = extractVariablesFromBuildGradle(content);
+                document.getElementById("resultsTable").style.display = "block";
+                populateTable(variables);
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                document.getElementById("resultsTable").style.display = "none";
+            });
+    }
+
+    // Extract variables from gradle.properties content
+    function extractVariables(content) {
+        const variables = {};
+        const regex = /(\w+)\s*=\s*(.+)/g;
+        let match;
+        while ((match = regex.exec(content)) !== null) {
+            const key = match[1];
+            const value = match[2];
+            if (["JAVA_VERSION", "MC_VERSION", "MC_NEXT_VERSION", "MCP_VERSION", "MAPPING_CHANNEL", "MAPPING_VERSION"].includes(key)) {
+                variables[key] = value;
+            }
+        }
+        return variables;
+    }
+
+    // Extract variables from build.gradle content
+    function extractVariablesFromBuildGradle(content) {
+        const variables = {};
+        const regex = /(\w+)\s*=\s*['"]?([^'"\s]+)['"]?/g;
+        let match;
+        while ((match = regex.exec(content)) !== null) {
+            const key = match[1];
+            const value = match[2];
+            if (["JAVA_VERSION", "MC_VERSION", "MC_NEXT_VERSION", "MCP_VERSION", "MAPPING_CHANNEL", "MAPPING_VERSION"].includes(key)) {
+                variables[key] = value;
+            }
+        }
+        return variables;
+    }
+
+    // Populate the table with variables
+    function populateTable(variables) {
+        const tableBody = document.getElementById("tableBody");
+        tableBody.innerHTML = '';
+        for (const key in variables) {
+            const row = document.createElement("tr");
+            const cellKey = document.createElement("td");
+            cellKey.textContent = key;
+            row.appendChild(cellKey);
+            const cellValue = document.createElement("td");
+            cellValue.textContent = variables[key];
+            row.appendChild(cellValue);
+            tableBody.appendChild(row);
+        }
+    }
+
+    // Gradle Version Fetcher
+    let allGradleVersions = [];
+
+    // Fetch Gradle versions from the API
+    function fetchGradleVersions() {
+        const gradleApiUrl = "https://services.gradle.org/versions/all";
+        fetch(gradleApiUrl)
+            .then(response => response.json())
+            .then(data => {
+                allGradleVersions = data.filter(version => version.downloadUrl.endsWith("-bin.zip"));
+                populateGradleList(allGradleVersions);
+            })
+            .catch(error => console.error("Error fetching Gradle versions:", error));
+    }
+
+    // Populate Gradle version list
+    function populateGradleList(versions) {
+        const gradleList = document.getElementById("gradleList");
+        gradleList.innerHTML = '';
+        versions.forEach(version => {
+            const li = document.createElement("li");
+            li.classList.add("gradle-item");
+            li.textContent = version.version;
+            li.addEventListener("click", () => displayDownloadUrl(version));
+            gradleList.appendChild(li);
+        });
+    }
+
+    // Filter Gradle versions based on search input
+    function filterVersions() {
+        const searchQuery = document.getElementById("gradleSearchInput").value.toLowerCase();
+        const filteredVersions = allGradleVersions.filter(version => version.version.toLowerCase().includes(searchQuery));
+        populateGradleList(filteredVersions);
+    }
+
+    // Display the download URL for the selected Gradle version
+    function displayDownloadUrl(version) {
+        const table = document.getElementById("gradleVersionTable");
+        table.style.display = "table";
+        const tableBody = document.getElementById("gradleVersionTableBody");
+        tableBody.innerHTML = '';
+        const row = document.createElement("tr");
+        const cellVersion = document.createElement("td");
+        cellVersion.textContent = version.version;
+        row.appendChild(cellVersion);
+        const cellUrl = document.createElement("td");
+        cellUrl.textContent = version.downloadUrl;
+        row.appendChild(cellUrl);
+        tableBody.appendChild(row);
+    }
+</script>
+
+</body>
+</html>
